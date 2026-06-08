@@ -85,24 +85,20 @@
         <section id="step-setup" class="bg-brand-card border border-brand-border rounded-3xl p-8 max-w-md mx-auto shadow-2xl relative overflow-hidden animate-fade-in text-center">
             <div class="absolute top-0 right-0 w-64 h-64 bg-brand-accent/10 rounded-full blur-3xl -z-10"></div>
             
-            <div class="py-6">
+            <div class="py-8">
                 <div class="w-16 h-16 bg-brand-accent/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-brand-accent/20">
                     <i data-lucide="shield-check" class="text-brand-accent w-8 h-8 animate-pulse"></i>
                 </div>
                 <h2 class="text-2xl font-bold text-white mb-2">vRewardX Admin Portal</h2>
                 <p class="text-sm text-slate-400 max-w-sm mx-auto leading-relaxed mb-6">
-                    Sign in below using the authorized master Google account to open your server command room dashboard.
+                    Connecting to the database. Access credentials loaded automatically.
                 </p>
                 
                 <!-- Status/Loader message -->
-                <div id="login-status-message" class="text-xs text-slate-400 mb-6 italic">
-                    Initializing secure database handshake...
+                <div id="login-status-message" class="text-xs text-brand-accent font-semibold mb-2 animate-pulse flex items-center justify-center gap-1.5">
+                    <span class="w-1.5 h-1.5 bg-brand-accent rounded-full animate-ping"></span>
+                    Initializing direct handshake protocol...
                 </div>
-
-                <!-- Sleek Single Authentication Button -->
-                <button type="button" onclick="launchDirectAdminLogin()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-4 px-4 rounded-2xl shadow-lg shadow-blue-500/20 active:scale-[0.98] transition flex items-center justify-center gap-3 text-sm cursor-pointer border border-blue-500/30">
-                    <i data-lucide="lock" class="w-4.5 h-4.5"></i> Continue with Google
-                </button>
             </div>
         </section>
 
@@ -470,24 +466,6 @@
             loadDefaultCredentials();
         });
 
-        function launchDirectAdminLogin() {
-            const project = defaultFirebaseConfig.projectId;
-            const key = defaultFirebaseConfig.apiKey;
-            const domain = defaultFirebaseConfig.authDomain;
-            const appid = defaultFirebaseConfig.appId;
-            const bucket = defaultFirebaseConfig.storageBucket;
-            const senderid = defaultFirebaseConfig.messagingSenderId;
-
-            const msgEl = document.getElementById('login-status-message');
-            if (msgEl) {
-                msgEl.textContent = "Launching secure Google login window...";
-                msgEl.className = "text-xs text-brand-accent mb-6 animate-pulse";
-            }
-
-            // Connect and trigger sign-in popup explicitly
-            connectFirebase(project, key, domain, appid, bucket, senderid, true);
-        }
-
         function loadDefaultCredentials() {
             const project = defaultFirebaseConfig.projectId;
             const key = defaultFirebaseConfig.apiKey;
@@ -497,10 +475,10 @@
             const senderid = defaultFirebaseConfig.messagingSenderId;
             
             // Connection initialized silently 
-            connectFirebase(project, key, domain, appid, bucket, senderid, false);
+            connectFirebase(project, key, domain, appid, bucket, senderid);
         }
 
-        function connectFirebase(project, key, domain, appid, bucket, senderid, forceLoginPopup = false) {
+        function connectFirebase(project, key, domain, appid, bucket, senderid) {
             const config = {
                 apiKey: key,
                 authDomain: domain,
@@ -518,7 +496,6 @@
             try {
                 appRef = firebase.initializeApp(config);
                 db = firebase.firestore();
-                const auth = firebase.auth();
 
                 function runHandshakeProbe() {
                     const msgEl = document.getElementById('login-status-message');
@@ -537,87 +514,20 @@
                         setupFirestoreRealtimeListeners();
                     }).catch(err => {
                         console.error("Firestore handshake constraint error: ", err);
-                        if (err.code === "permission-denied" || err.message.toLowerCase().includes("permission")) {
-                            if (msgEl) {
-                                msgEl.innerText = "Access Forbidden: Only authorized admins can login.";
-                                msgEl.className = "text-xs text-rose-500 mb-6 font-bold";
-                            }
-                            if (forceLoginPopup) {
-                                triggerAdminSessionAuthentication(true);
-                            } else {
-                                updateConnectionIndicator(false, `Unauthorized`);
-                            }
-                        } else {
-                            if (msgEl) {
-                                msgEl.innerText = "Probing failed: " + err.message;
-                                msgEl.className = "text-xs text-rose-500 mb-6";
-                            }
-                            updateConnectionIndicator(false, `Offline`);
-                            if (forceLoginPopup) {
-                                alert(`Access Verification failed: ${err.message}`);
-                            }
+                        if (msgEl) {
+                            msgEl.innerText = "Probing failed: " + err.message;
+                            msgEl.className = "text-xs text-rose-500 mb-6 font-bold";
                         }
+                        updateConnectionIndicator(false, `Offline`);
                     });
                 }
 
-                function triggerAdminSessionAuthentication(forcePopup = false) {
-                    const provider = new firebase.auth.GoogleAuthProvider();
-                    const msgEl = document.getElementById('login-status-message');
-                    if (forcePopup || !auth.currentUser) {
-                        if (msgEl) {
-                            msgEl.innerText = "Waiting for Google login approval...";
-                            msgEl.className = "text-xs text-yellow-400 mb-6 animate-pulse";
-                        }
-                        auth.signInWithPopup(provider).then(res => {
-                            if (res.user && res.user.email !== 'vivekdalvi147@gmail.com') {
-                                if (msgEl) {
-                                    msgEl.innerText = "Access Denied: Only vivekdalvi147@gmail.com workspace is allowed.";
-                                    msgEl.className = "text-xs text-rose-500 mb-6 font-bold";
-                                }
-                                alert("Access Denied: Logged in as " + res.user.email + ", but database is restricted to 'vivekdalvi147@gmail.com' via Firestore security rules.");
-                                auth.signOut();
-                                updateConnectionIndicator(false, `Unauthorized`);
-                            } else {
-                                runHandshakeProbe();
-                            }
-                        }).catch(e => {
-                            updateConnectionIndicator(false, `Offline`);
-                            if (msgEl) {
-                                msgEl.innerText = "Login popup blocked or closed. Please try again.";
-                                msgEl.className = "text-xs text-rose-400 mb-6 font-semibold";
-                            }
-                        });
-                    } else if (auth.currentUser && auth.currentUser.email === 'vivekdalvi147@gmail.com') {
-                        runHandshakeProbe();
-                    } else {
-                        if (forcePopup) {
-                            triggerAdminSessionAuthentication(true);
-                        }
-                    }
-                }
-
-                // Execute probe with dynamic auto-sign-in check
-                auth.onAuthStateChanged(user => {
-                    const msgEl = document.getElementById('login-status-message');
-                    if (user && user.email === 'vivekdalvi147@gmail.com') {
-                        runHandshakeProbe();
-                    } else {
-                        updateConnectionIndicator(false, `Offline`);
-                        if (msgEl) {
-                            msgEl.innerText = "Please authenticate below to proceed.";
-                            msgEl.className = "text-xs text-slate-400 mb-6 font-medium";
-                        }
-                        if (forceLoginPopup) {
-                            triggerAdminSessionAuthentication(true);
-                        }
-                    }
-                });
+                // Run direct handshake probe immediately
+                runHandshakeProbe();
 
             } catch (err) {
                 updateConnectionIndicator(false, `Failure`);
-                if (forceLoginPopup) {
-                    alert("Settings parsing issue! Check strings layout details.");
-                }
+                console.error("Initialize error:", err);
             }
         }
 
